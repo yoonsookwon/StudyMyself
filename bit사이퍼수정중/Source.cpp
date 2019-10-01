@@ -51,6 +51,25 @@ void Make_ResultBit_By_Case(int theCase, int& remainBit, unsigned char& resultBi
 		saveBit = saveBit | resultBit;
 	}
 }
+
+
+int GroupNumBits(int value) {
+	int requiredBits = 0;
+	while (value >>= 1) {
+		requiredBits++;
+	}
+	return requiredBits;
+}
+
+int LetterNumBits(int value) {
+	int requiredBits = 1;
+	while (value <<= 1) {
+		requiredBits++;
+	}
+	return requiredBits;
+}
+
+
 //Helper
 void EncryptHelper(const int _groupCount, const unsigned char _letterCount, const int uncompressedNum, int& remainBit, unsigned char& saveBit, std::vector<char>& encodeText, std::string uncompressed)
 {
@@ -61,25 +80,25 @@ void EncryptHelper(const int _groupCount, const unsigned char _letterCount, cons
 	switch (_groupCount)
 	{
 	case GROUP_1:
-		groupBit = char(groupBit << make_2bit);
+		groupBit = char(groupBit << (bit_size8 - GroupNumBits(NUMGROUPS)));
 		letterBit = char(letterBit << make_3bit);
 		remainBit -= make_5bit;
 		Make_ResultBit_By_Case(make_5bit, remainBit, resultBit, groupBit | letterBit, saveBit, encodeText);
 		break;
 	case GROUP_2:
-		groupBit = char(groupBit << make_2bit);
+		groupBit = char(groupBit << (bit_size8 - GroupNumBits(NUMGROUPS)));
 		letterBit = char(letterBit << make_4bit);
 		remainBit -= make_4bit;
 		Make_ResultBit_By_Case(make_4bit, remainBit, resultBit, groupBit | letterBit, saveBit, encodeText);
 		break;
 	case GROUP_3:
-		groupBit = char(groupBit << make_2bit);
+		groupBit = char(groupBit << (bit_size8 - GroupNumBits(NUMGROUPS)));
 		letterBit = char(letterBit << make_5bit);
 		remainBit -= make_3bit;
 		Make_ResultBit_By_Case(make_3bit, remainBit, resultBit, groupBit | letterBit, saveBit, encodeText);
 		break;
 	case GROUP_4:
-		groupBit = char(groupBit << make_2bit);
+		groupBit = char(groupBit << (bit_size8 - GroupNumBits(NUMGROUPS)));
 		letterBit = char(letterBit << make_6bit);
 		remainBit -= make_2bit;
 		Make_ResultBit_By_Case(make_2bit, remainBit, resultBit, groupBit | letterBit, saveBit, encodeText);
@@ -94,20 +113,23 @@ std::vector<char> encode(std::string uncompressed)
 	std::vector<char> encodeText;
 	int remainBit = bit_size8;
 	unsigned char resultBit = 0;
+	const int uncompressedSize = uncompressed.size();
+	int letterCount = 0;
 
-	for (unsigned int uncompressedNum = 0; uncompressedNum < uncompressed.size(); uncompressedNum++)
+	for (int groupCount = 0; groupCount < NUMGROUPS;)
 	{
-		for (int groupCount = 0; groupCount < NUMGROUPS; groupCount++)
-		{
-			//unsigned int groupIndexNum = 
-			for (unsigned int letterCount = 0; letterCount < groups[groupCount].size(); letterCount++)
-			{
-				
-				if (uncompressed.at(uncompressedNum) == groups[groupCount].at(letterCount))
-				{
-					EncryptHelper(groupCount, char(letterCount), uncompressedNum, remainBit, resultBit, encodeText, uncompressed);
-				}
+		unsigned int groupCountIndex = groups[groupCount].find(uncompressed.at(letterCount));
+
+		if (groupCountIndex != std::string::npos){
+			EncryptHelper(groupCount, char(groupCountIndex), letterCount, remainBit, resultBit, encodeText, uncompressed);
+			letterCount++;
+			groupCount = 0;
+			if (letterCount == uncompressedSize) {
+				break;
 			}
+		}
+		else{
+			groupCount++;
 		}
 	}
 	return encodeText;
@@ -129,17 +151,19 @@ std::string decode(std::vector<char> compressed)
 {
 	std::string decodedStr;
 	int usedBit = 0;
+	const int compressedSize = compressed.size();
 	unsigned char groupBit = 0;
 	unsigned char letterBit = 0;
 	unsigned char groupBit2 = 0;
 	unsigned char letterBit2 = 0;
 	unsigned char saveBit = 1;
 	unsigned char originalByte = 0;
+	
 
 	int index = 0;
 	originalByte = compressed.at(index);
 
-	while (index != int(compressed.size()))
+	while (index != compressedSize)
 	{
 		//Group bit
 		groupBit = char(static_cast<unsigned char>(originalByte << usedBit) >> make_2bit);
@@ -168,8 +192,7 @@ std::string decode(std::vector<char> compressed)
 			usedBit += USED_GROUP_2;
 			if (usedBit > bit_size8)
 			{
-				DecodeHelper(USED_GROUP_2, make_2bit, saveBit, originalByte, usedBit, index, letterBit, compressed);
-	
+				DecodeHelper(USED_GROUP_2, make_2bit, saveBit, originalByte, usedBit, index, letterBit, compressed);	
 			}
 		}
 		else if (groupBit == GROUP_3)
@@ -191,10 +214,7 @@ std::string decode(std::vector<char> compressed)
 				DecodeHelper(USED_GROUP_4, make_4bit, saveBit, originalByte, usedBit, index, letterBit, compressed);
 			}
 		}
-		/*if (compressed.size() == 1) {
-			decodedStr.push_back(groups[groupBit].at(letterBit));
-			return decodedStr;
-		}*/
+		
 		if (index + 1 == int(compressed.size()))
 		{
 			groupBit2 = char(static_cast<unsigned char>(originalByte << usedBit) >> make_2bit);
